@@ -1,0 +1,89 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cloudflare代理代码按需生成器 · 六入站双传输九出站</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="prism-tomorrow.min.css"></head><body><button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换日间/夜间模式" title="切换日间/夜间模式"> ☀️
+</button><div class="container"><header><div class="title-group"><h1>Cloudflare代理代码按需生成器<span class="badge">6 入站 · 2 传输 · 9 出站</span></h1><p>按选择裁剪入站、传输与出站。单文件离线可用，凭据、SHA-224 和文件大小均在本地计算。</p></div><div class="stat-badges"><div class="stat-badge"><span class="stat-label">原 JS 文件</span><span class="stat-val" id="origSizeLabel">—</span></div><div class="stat-badge highlight"><span class="stat-label">生成文件 · UTF-8</span><span class="stat-val" id="currSizeLabel">—</span></div><div class="stat-badge highlight"><span class="stat-label">相对原文件</span><span class="stat-val" id="reductionLabel">—</span></div></div></header><main class="workspace"><div class="panel"><section aria-labelledby="runtime-heading"><div class="section-header"><h2 class="section-title" id="runtime-heading">🖥️ 运行环境</h2><span class="section-desc">选择生成代码的部署环境</span></div><div class="features-grid" id="runtime-options"><label class="feature-card"><input id="runtime-workers" name="runtime" value="workers" type="radio" checked onchange="generate()"><span><strong>Workers</strong><small>保留完整并发与双 DNS 容灾</small></span></label><label class="feature-card"><input id="runtime-snippets" name="runtime" value="snippets" type="radio" onchange="generate()"><span><strong>Snippets</strong><small>仅Cloudflare DNS，单连接策略</small></span></label></div></section><section><div class="section-header"><h2 class="section-title">📑 快速选择模板</h2><span class="section-desc">保留已填写的凭据</span></div><div class="preset-group" id="presets"></div></section><section aria-labelledby="inbound-heading"><div class="section-header"><h2 class="section-title" id="inbound-heading">01 · 入站协议</h2><span class="section-desc">可多选，至少一种</span></div><div class="features-grid" id="inbound-options"></div><p class="section-desc" style="margin-top:8px">SOCKS5/HTTP为封装在WS/XHTTP内的握手，客户端须支持对应封装。SS none不校验入站密码，SS AEAD仅支持WebSocket传输。</p></section><section aria-labelledby="transport-heading"><div class="section-header"><h2 class="section-title" id="transport-heading">02 · 传输方式</h2><span class="section-desc">可多选，至少一种</span></div><div class="features-grid" id="transport-options"></div></section><section aria-labelledby="dns-heading"><div class="section-header"><h2 class="section-title" id="dns-heading">03 · DNS 解析代理</h2><span class="section-desc">可选，将入站发往53端口的DNS请求转为DoH查询</span></div><div class="features-grid" id="dns-options"><label class="feature-card"><input id="dns-proxy" type="checkbox" onchange="generate()"><span><strong>DNS 代理</strong></span></label></div></section><section aria-labelledby="outbound-heading"><div class="section-header"><h2 class="section-title" id="outbound-heading">04 · 出站能力</h2><span class="section-desc">仅打包勾选的模块</span></div><div class="features-grid" id="outbound-options"></div></section><section aria-labelledby="credential-heading"><div class="section-header"><h2 class="section-title" id="credential-heading">05 · 代码参数配置</h2><span class="section-desc">按需填写配置</span></div><div class="accordion-content credential-grid"><div class="form-group" id="credential-concurrency"><label for="cfg-concurrency">TCP 建连并发数（1–6）</label><select id="cfg-concurrency" onchange="generate()"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select><span class="section-desc">最大6并发，超出无意义。</span></div><div class="form-group" id="credential-speed"><label for="cfg-flush-time">默认Websocket下行限速 (可被路径speed参数覆盖)</label><select id="cfg-flush-time" onchange="generate()"><option value="2">2 ms (极速)</option><option value="3" selected>3 ms (默认)</option><option value="4">4 ms</option><option value="5">5 ms</option><option value="6">6 ms</option><option value="7">7 ms</option><option value="8">8 ms</option><option value="9">9 ms</option><option value="10">10 ms (较强限速)</option></select><span class="section-desc">预估Websocket下行限速：<span id="speed-preview" class="hash-preview">—</span></span></div><div class="form-group" id="credential-aiproxyip"><label for="cfg-ai-proxyip">香港地区默认AI ProxyIP 域名</label><div class="input-row"><select id="cfg-ai-proxyip-select" style="width: auto; min-width: 150px; flex-shrink: 0;" onchange="syncAiProxyIpSelect(this.value)"><option value="hkgai.58807.de5.net" selected>hkgai.58807.de5.net(默认)</option><option value="krfxpip.9999669.xyz">krfxpip.9999669.xyz(韩国)</option><option value="krfxpip.5671234.xyz">krfxpip.5671234.xyz(韩国)</option><option value="kr.william.us.ci">kr.william.us.ci(韩国)</option><option value="tw.william.us.ci">tw.william.us.ci(台湾)</option><option value="custom">自定义输入</option></select><input id="cfg-ai-proxyip" value="hkgai.58807.de5.net" placeholder="请输入代理域名或 IP" autocomplete="off" oninput="syncAiProxyIpInput(); debouncedGenerate();"></div><span class="section-desc">HKG节点访问OpenAI/Claude等AI域名时的回退代理（左侧快捷选择，右侧可直接编辑自定义）</span></div><div class="form-group" id="credential-sni"><label class="checkbox-label" for="cfg-sni"><input id="cfg-sni" type="checkbox" role="switch" onchange="generate()">SNI域名嗅探</label><span class="sni-hint">开启后会导致客户端设置的IPv4或IPv6优先失效</span></div></div></section></div><div class="code-info-card"><div class="node-card" id="node-panel"><div class="node-header"><span class="node-title">🔗 手搓节点配置</span></div><div class="credential-grid"><div class="form-group" id="credential-vless"><label for="cfg-uuid">VLESS UUID</label><div class="input-row"><input id="cfg-uuid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" oninput="debouncedGenerate()"><button class="btn-small" onclick="randomUUID()">随机UUID</button></div></div><div class="form-group" id="credential-trojan"><label for="cfg-trojan-pass">Trojan明文密码</label><div class="input-row"><input id="cfg-trojan-pass" autocomplete="off" oninput="debouncedGenerate()"><button class="btn-small" onclick="randomTrojanPass()">随机密码</button></div><span class="section-desc hash-preview">SHA-224:<span id="sha224-preview">—</span></span></div><div class="form-group" id="credential-aead"><label for="cfg-ss-pass">SS AEAD密码</label><div class="input-row"><input id="cfg-ss-pass" autocomplete="off" oninput="debouncedGenerate()"><button class="btn-small" onclick="randomSsPass()">随机密码</button></div></div><div class="form-group" id="credential-user"><label for="cfg-s5-user">SOCKS5/HTTP 入站用户名</label><input id="cfg-s5-user" value="admin" autocomplete="off" oninput="debouncedGenerate()"></div><div class="form-group" id="credential-pass"><label for="cfg-s5-pass">SOCKS5/HTTP入站密码</label><input id="cfg-s5-pass" autocomplete="off" oninput="debouncedGenerate()"></div><div class="form-group"><div class="node-inputs-grid"><div class="node-input-group"><label for="node-ip">优选IP/域名</label><input id="node-ip" value="104.16.0.1" placeholder="例如: 104.16.0.1 或 icook.hk" oninput="updateNodeLinks()"></div><div class="node-input-group" style="flex: 0 0 75px;"><label for="node-port">端口</label><input id="node-port" type="number" value="443" placeholder="443" oninput="updateNodeLinks()"></div><div class="node-input-group"><label for="node-host">Host/SNI域名</label><input id="node-host" value="example.workers.dev" placeholder="例如: example.workers.dev" oninput="updateNodeLinks()"></div><div class="node-input-group" style="flex: 0 0 110px;"><label for="node-name">节点备注名</label><input id="node-name" value="CF-Node" placeholder="备注名" oninput="updateNodeLinks()"></div></div></div><div class="form-group" id="credential-notls"><div class="notls-controls-row"><label class="checkbox-label" for="node-notls-enable"><input id="node-notls-enable" type="checkbox" role="switch" onchange="updateNodeLinks()"><span>生成NoTLS分享链接（VLESS/SS/SS AEAD）</span></label><div class="xmux-input-wrap notls-input-wrap"><label for="node-notls-ip">NoTLS优选IP/域名</label><input id="node-notls-ip" class="notls-ip-input" type="text" value="" placeholder="留空跟随上方优选" aria-label="NoTLS优选IP/域名" autocomplete="off" disabled oninput="updateNodeLinks()"><label for="node-notls-port">NoTLS端口</label><input id="node-notls-port" type="number" value="80" min="1" max="65535" disabled oninput="updateNodeLinks()"></div></div></div><div class="form-group" id="credential-ech"><label class="checkbox-label" for="node-ech-enable"><input id="node-ech-enable" type="checkbox" role="switch" onchange="updateNodeLinks()"><span>TLS开启ECH</span></label><div class="xmux-input-wrap ech-input-wrap"><label for="node-ech-dns">EchConfig</label><input id="node-ech-dns" value="lido.fi+https://223.5.5.5/dns-query" aria-label="ECH配置" autocomplete="off" oninput="updateNodeLinks()"></div></div><div class="form-group" id="credential-xmux"><div class="xhttp-card-row"><span class="xhttp-row-label" id="xhttp-version-label">XHTTP ALPN版本</span><span class="xhttp-row-hint">h2基于TCP · h3基于QUIC</span><div class="segmented-control" role="radiogroup" aria-labelledby="xhttp-version-label"><label class="segment"><input id="node-xhttp-h2" name="node-xhttp-alpn" type="radio" value="h2" checked onchange="updateNodeLinks()"><span>H2</span></label><label class="segment"><input id="node-xhttp-h3" name="node-xhttp-alpn" type="radio" value="h3" onchange="updateNodeLinks()"><span>H3</span></label></div></div><div class="xhttp-card-row"><label class="checkbox-label" for="node-xmux-enable"><input id="node-xmux-enable" type="checkbox" role="switch" aria-describedby="xmux-description" onchange="updateNodeLinks()"><span>Xmux连接复用</span></label><div class="xmux-input-wrap" role="radiogroup" aria-label="xmux 复用模式" aria-describedby="xmux-description"><div class="xmux-mode"><label class="xmux-radio" title="限制客户端复用连接池的 TCP 连接总量"><input id="node-xmux-mode-connections" name="node-xmux-mode" type="radio" value="connections" checked disabled onchange="updateNodeLinks()"><span>连接池最大连接数</span></label><input id="node-xmux-max" type="number" value="4" min="1" max="128" disabled aria-label="最大 TCP 连接数" oninput="updateNodeLinks()"></div><div class="xmux-mode"><label class="xmux-radio" title="限制单条 TCP 连接内可复用的并发流数量"><input id="node-xmux-mode-concurrency" name="node-xmux-mode" type="radio" value="concurrency" disabled onchange="updateNodeLinks()"><span>单连接最大承载流数</span></label><input id="node-xmux-concurrency" type="number" value="16" min="1" max="128" disabled aria-label="单连接最大复用流数" oninput="updateNodeLinks()"></div></div></div><p class="xmux-description" id="xmux-description">两种模式互斥，只能选择一种：连接池最大连接数限制连接总量，单连接最大复用流数限制每条连接的并发流数。</p></div><details class="parameter-card param-details-collapse" id="param-details"><summary class="param-summary-title" id="parameter-heading">📖 出站URL路径参数速查表<span class="param-toggle-text" aria-hidden="true"></span></summary><div class="param-details-body"><p class="section-desc"> 按需手动填写到下方节点路径中；下表根据已勾选的出站能力动态保留：</p><div class="table-scroll"><table class="param-table"><thead><tr><th>已保留能力</th><th>回退参数 / 全局参数</th><th>示例值</th></tr></thead><tbody id="parameter-rows"></tbody></table></div></div></details><div class="form-group"><label for="node-path">自定义路径（键内多个值用英文逗号分隔，多个键值用 & 连接）</label><input id="node-path" value="/?ed=8192" placeholder="/?ed=8192" oninput="updateNodeLinks()"></div></div><div class="node-header node-links-header"><span class="node-title">📋 已生成的节点链接</span><button class="btn-action btn-primary" id="copy-all-nodes" type="button" onclick="copyAllNodes()"> 复制全部节点 </button></div><div class="node-list" id="node-list"></div></div></div><div class="code-info-card code-output-card"><div class="code-header"><div class="code-meta"><span id="codeStatus" role="status" aria-live="polite">已生成</span><span id="codeLineCount">0 行</span><span id="codeByteCount">0 B</span></div><div class="code-actions"><div class="minify-group" id="minify-options"><label class="minify-item"><input id="minify-syntax" type="checkbox" onchange="generate()"> 语法压缩</label><label class="minify-item"><input id="minify-whitespace" type="checkbox" onchange="generate()"> 空白压缩</label><label class="minify-item"><input id="minify-identifiers" type="checkbox" onchange="generate()"> 变量压缩</label></div><button class="btn-action btn-secondary" onclick="generate()">刷新</button><button class="btn-action btn-secondary" id="download-code" onclick="downloadCode()">下载JS </button><button class="btn-action btn-primary" id="copy-code" onclick="copyCode()">复制代码</button></div></div><div class="selection-summary" id="selection-summary"></div><div id="validation-messages" aria-live="polite"></div><div class="selection-summary" id="size-explanation"></div><div class="code-divider"><button class="code-expand-toggle" id="expand-code" type="button" aria-expanded="false" aria-controls="codePre" onclick="toggleCodeExpansion()">已生成的代码（点击展开） </button></div><section class="code-panel" aria-label="生成的 Worker JS"><div class="code-container"> <pre id="codePre"><code id="codeOutput" class="language-javascript"></code></pre> </div></section></div></main><footer class="section-desc" style="padding:0 0">基准文件：<a href="https://github.com/1345695/edcloudwasm/blob/main/%E7%BA%AF%E4%BC%A0%E8%BE%93%E4%BB%A3%E7%A0%81/%E4%BA%94%E5%8D%8F%E8%AE%AE%E4%BA%8C%E4%BC%A0%E8%BE%93%E9%98%9F%E5%88%97%E4%B8%8A%E8%A1%8C%20-%20%E7%BC%93%E5%AD%98%E5%8F%91%E9%80%81%20-%20%E8%B7%AF%E5%BE%84speed%E9%99%90%E9%80%9F.js" target="_blank" rel="noopener noreferrer">五协议二传输队列上行 - 缓存发送 - 路径speed限速.js</a></footer></div><div class="toast" id="toast" role="status" aria-live="polite"></div><div class="qr-modal" id="node-qr-modal" hidden><section class="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="node-qr-title" tabindex="-1"><h2 class="qr-dialog-title" id="node-qr-title">节点二维码</h2><p class="qr-dialog-description">使用客户端扫码导入节点</p><canvas class="qr-canvas" id="node-qr-canvas" width="360" height="360" aria-label="节点链接二维码"></canvas><button class="btn-action btn-primary qr-close-button" id="node-qr-close" type="button" onclick="closeNodeQr()"> 关闭 </button></section></div>
+<script src="terser.min.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="prism.min.js"></script>
+<script>(() => {
+    var e = document.getElementById("codeOutput");
+    if (!e) return;
+    let highlightTimer = null;
+    let sourceCode = "";
+    function splitHighlightedLines(node) {
+        const lines = [[]];
+        const append = child => {
+            if (child.nodeType === Node.TEXT_NODE) {
+                const parts = child.nodeValue.split("\n");
+                parts.forEach((part, index) => {
+                    if (part) lines[lines.length - 1].push(document.createTextNode(part));
+                    if (index < parts.length - 1) lines.push([]);
+                });
+                return;
+            }
+            if (child.nodeType !== Node.ELEMENT_NODE) {
+                lines[lines.length - 1].push(child.cloneNode(true));
+                return;
+            }
+            const nestedLines = splitHighlightedLines(child);
+            nestedLines.forEach((nestedLine, index) => {
+                const clone = child.cloneNode(false);
+                nestedLine.forEach(nestedChild => clone.append(nestedChild));
+                lines[lines.length - 1].push(clone);
+                if (index < nestedLines.length - 1) lines.push([]);
+            });
+        };
+        Array.from(node.childNodes).forEach(append);
+        return lines;
+    }
+    function renderCodeLines() {
+        if (!sourceCode) {
+            e.replaceChildren();
+            return;
+        }
+        const lines = splitHighlightedLines(e);
+        e.closest(".code-container")?.style.setProperty("--line-number-digits", String(String(lines.length).length));
+        const fragment = document.createDocumentFragment();
+        lines.forEach((lineNodes, index) => {
+            const line = document.createElement("span");
+            line.className = "code-line";
+            line.dataset.line = String(index + 1);
+            lineNodes.forEach(child => line.append(child));
+            fragment.append(line);
+        });
+        e.replaceChildren(fragment);
+    }
+    Object.defineProperty(e, "value", {
+        get() { return sourceCode; }, set(val) {
+            sourceCode = String(val ?? "");
+            this.textContent = sourceCode;
+            if (highlightTimer !== null) {
+                (window.cancelIdleCallback || clearTimeout)(highlightTimer);
+                highlightTimer = null;
+            }
+            if (window.Prism && !document.getElementById("minify-whitespace")?.checked) {
+                const schedule = window.requestIdleCallback || ((cb) => setTimeout(cb, 16));
+                highlightTimer = schedule(() => {
+                    highlightTimer = null;
+                    if (!document.getElementById("minify-whitespace")?.checked) Prism.highlightElement(e);
+                    renderCodeLines();
+                });
+            } else { renderCodeLines(); }
+        }
+    });
+    const whitespaceCompression = document.getElementById("minify-whitespace");
+    whitespaceCompression?.addEventListener("change", () => {
+        if (!whitespaceCompression.checked) return;
+        if (highlightTimer !== null) {
+            (window.cancelIdleCallback || clearTimeout)(highlightTimer);
+            highlightTimer = null;
+        }
+        e.value = sourceCode;
+    });
+    e.select = function () {
+        var range = document.createRange(), sel = window.getSelection();
+        range.selectNodeContents(this);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    };
+})()</script>
+<script src="app.js"></script>
+</body></html>

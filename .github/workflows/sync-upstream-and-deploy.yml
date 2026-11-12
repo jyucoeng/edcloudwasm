@@ -1,0 +1,85 @@
+name: sync-upstream-and-deploy
+
+# 1) 把上游 1345695/edcloudwasm 的提交合并进本 fork（GitHub 不会自动同步 fork）
+# 2) 若合并后内容有变化，重新构建并部署到 Cloudflare Pages（项目 edcloudwasm → ed.dora.cc.cd）
+#
+# 需要仓库 secret：CLOUDFLARE_API_TOKEN（Pages:Edit 权限）
+# 可选仓库 secret：SYNC_TOKEN（PAT，用于 merge-upstream；不配则用 GITHUB_TOKEN）
+
+on:
+  schedule:
+    - cron: '0 20 * * *' # UTC 20:00 = 北京时间 每天 04:00
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 即使上游没有更新也重新部署一次
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+    steps:
+      - name: Merge upstream into fork
+        id: merge
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          before=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/main" | python3 -c "import json,sys;print(json.load(sys.stdin)['sha'])")
+          echo "before=$before"
+          code=$(curl -sS -o /tmp/merge.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/merge-upstream" \
+            -d '{"branch":"main"}')
+          echo "merge-upstream HTTP $code"
+          cat /tmp/merge.json
+          after=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/main" | python3 -c "import json,sys;print(json.load(sys.stdin)['sha'])")
+          echo "after=$after"
+          if [ "$before" != "$after" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true' || inputs.force_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build dist
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp _worker.js TlsClient.js protocol.wasm dist/
+          if [ -d .cf-deploy/ui ]; then cp -R .cf-deploy/ui/. dist/; fi
+          python3 .cf-deploy/patch-landing.py dist/_worker.js
+          # wrangler.toml [build] 等价步骤：给 wasm 追加随机盐段（只在 dist 副本上做）
+          node -e "const fs=require('fs'),c=require('crypto'),n=16+(Math.random()*110|0);fs.appendFileSync('dist/protocol.wasm',Buffer.concat([Buffer.from([0,n+2,1,115]),c.randomBytes(n)]))"
+          ls -l dist
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || '8613e14ac32cfd5dacd9debe99c79a8d' }}
+        run: npx --yes wrangler@4 pages deploy dist --project-name=edcloudwasm --branch=main --commit-dirty=true
